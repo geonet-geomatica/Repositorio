@@ -1,7 +1,8 @@
 from flask import Flask, jsonify, Response
 import requests
 import logging
-from xml.etree.ElementTree import Element, SubElement, tostring
+from xml.etree.ElementTree import Element, SubElement, tostring, ElementTree
+import xml.sax.saxutils as saxutils
 
 app = Flask(__name__)
 
@@ -14,17 +15,16 @@ BASE_URL = "https://agrometeo.mendoza.gov.ar/api/getInstantaneas.php"
 # Lista de estaciones disponibles (1 al 43)
 STATIONS = list(range(1, 44))
 
+
 def fetch_station_data(station_id):
     """
     Función para obtener datos de una estación específica.
     """
     try:
         logging.info(f"Obteniendo datos para la estación {station_id}...")
-        # Forzar actualización de los datos haciendo una solicitud HTTP
         response = requests.get(f"{BASE_URL}?estacion={station_id}")
         response.raise_for_status()  # Levanta excepciones para códigos HTTP no exitosos
         data = response.json()
-        
         if data and len(data) > 0:
             logging.info(f"Datos recibidos para la estación {station_id}: {data[0]}")
             return data[0]
@@ -36,6 +36,16 @@ def fetch_station_data(station_id):
     except Exception as e:
         logging.error(f"Error al obtener datos de la estación {station_id}: {e}")
     return None
+
+
+def escape_xml(value):
+    """
+    Escapa caracteres especiales en valores XML.
+    """
+    if value is None:
+        return ""
+    return saxutils.escape(str(value))
+
 
 def convert_to_wfs(geojson):
     """
@@ -54,7 +64,7 @@ def convert_to_wfs(geojson):
 
         for key, value in properties.items():
             property_elem = SubElement(feature_elem, key)
-            property_elem.text = str(value)
+            property_elem.text = escape_xml(value)
 
         geometry_elem = SubElement(feature_elem, "geometry", {
             "type": geometry["type"]
@@ -62,7 +72,8 @@ def convert_to_wfs(geojson):
         coordinates = SubElement(geometry_elem, "coordinates")
         coordinates.text = " ".join(map(str, geometry["coordinates"]))
 
-    return tostring(wfs)
+    return tostring(wfs, encoding="utf-8", method="xml")
+
 
 @app.route('/stations', methods=['GET'])
 def get_all_stations():
@@ -70,7 +81,7 @@ def get_all_stations():
     Endpoint para obtener datos de todas las estaciones en formato GeoJSON.
     """
     logging.info("Iniciando la generación del GeoJSON...")
-    
+
     features = []
     for station_id in STATIONS:
         station_data = fetch_station_data(station_id)
@@ -85,17 +96,17 @@ def get_all_stations():
                     "properties": {
                         "Nombre": station_data["Nombre"],
                         "Fecha": station_data["fecha"],
-                        "Temperatura Aire": f"{station_data['tempAire']} °C",
+                        "Temperatura_Aire": f"{station_data['tempAire']} °C",
                         "Humedad": f"{station_data['humedad']} %",
-                        "Punto de Rocío": f"{station_data['puntoRocio']} °C",
-                        "Velocidad Viento": f"{station_data['velocidadViento']} m/s",
-                        "Dirección del Viento": station_data["direccionVientoTexto"]
+                        "Punto_de_Rocío": f"{station_data['puntoRocio']} °C",
+                        "Velocidad_Viento": f"{station_data['velocidadViento']} m/s",
+                        "Dirección_del_Viento": station_data["direccionVientoTexto"]
                     }
                 }
                 features.append(feature)
             except KeyError as e:
                 logging.error(f"Error procesando datos de la estación {station_id}: {e}")
-    
+
     geojson = {
         "type": "FeatureCollection",
         "features": features
@@ -103,13 +114,14 @@ def get_all_stations():
     logging.info("GeoJSON generado exitosamente.")
     return jsonify(geojson)
 
+
 @app.route('/wfs', methods=['GET'])
 def get_wfs():
     """
     Endpoint para obtener datos en formato WFS.
     """
     logging.info("Generando datos en formato WFS...")
-    
+
     features = []
     for station_id in STATIONS:
         station_data = fetch_station_data(station_id)
@@ -124,17 +136,17 @@ def get_wfs():
                     "properties": {
                         "Nombre": station_data["Nombre"],
                         "Fecha": station_data["fecha"],
-                        "Temperatura Aire": f"{station_data['tempAire']} °C",
+                        "Temperatura_Aire": f"{station_data['tempAire']} °C",
                         "Humedad": f"{station_data['humedad']} %",
-                        "Punto de Rocío": f"{station_data['puntoRocio']} °C",
-                        "Velocidad Viento": f"{station_data['velocidadViento']} m/s",
-                        "Dirección del Viento": station_data["direccionVientoTexto"]
+                        "Punto_de_Rocío": f"{station_data['puntoRocio']} °C",
+                        "Velocidad_Viento": f"{station_data['velocidadViento']} m/s",
+                        "Dirección_del_Viento": station_data["direccionVientoTexto"]
                     }
                 }
                 features.append(feature)
             except KeyError as e:
                 logging.error(f"Error procesando datos de la estación {station_id}: {e}")
-    
+
     geojson = {
         "type": "FeatureCollection",
         "features": features
@@ -143,6 +155,7 @@ def get_wfs():
     wfs_response = convert_to_wfs(geojson)
     logging.info("WFS generado exitosamente.")
     return Response(wfs_response, content_type='application/xml')
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
