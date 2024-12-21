@@ -1,5 +1,4 @@
-from flask import Flask, request, jsonify, Response
-import requests
+from flask import Flask, request, Response
 import logging
 from xml.etree.ElementTree import Element, SubElement, tostring
 
@@ -11,22 +10,6 @@ BASE_URL = "https://agrometeo.mendoza.gov.ar/api/getInstantaneas.php"
 STATIONS = list(range(1, 44))
 
 
-def fetch_station_data(station_id):
-    try:
-        logging.info(f"Obteniendo datos para la estación {station_id}...")
-        response = requests.get(f"{BASE_URL}?estacion={station_id}")
-        response.raise_for_status()
-        data = response.json()
-        if data and len(data) > 0:
-            return data[0]
-        else:
-            logging.warning(f"No se encontraron datos para la estación {station_id}.")
-            return None
-    except Exception as e:
-        logging.error(f"Error al obtener datos: {e}")
-        return None
-
-
 def create_capabilities(base_url):
     capabilities = Element("wfs:WFS_Capabilities", {
         "version": "1.1.0",
@@ -34,6 +17,7 @@ def create_capabilities(base_url):
         "xmlns:ogc": "http://www.opengis.net/ogc",
         "xmlns:gml": "http://www.opengis.net/gml",
         "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance",
+        "xmlns:xlink": "http://www.w3.org/1999/xlink",
         "xsi:schemaLocation": "http://www.opengis.net/wfs http://schemas.opengis.net/wfs/1.1.0/wfs.xsd"
     })
 
@@ -52,20 +36,23 @@ def create_capabilities(base_url):
 
     # GetCapabilities operation
     get_capabilities = SubElement(request_elem, "GetCapabilities")
-    SubElement(get_capabilities, "DCPType").text = "HTTP"
-    get_capabilities_url = SubElement(get_capabilities, "Get")
+    dcp_type = SubElement(get_capabilities, "DCPType")
+    http_elem = SubElement(dcp_type, "HTTP")
+    get_capabilities_url = SubElement(http_elem, "Get")
     get_capabilities_url.set("xlink:href", base_url)
 
     # DescribeFeatureType operation
     describe_feature_type = SubElement(request_elem, "DescribeFeatureType")
-    SubElement(describe_feature_type, "DCPType").text = "HTTP"
-    describe_feature_type_url = SubElement(describe_feature_type, "Get")
+    dcp_type = SubElement(describe_feature_type, "DCPType")
+    http_elem = SubElement(dcp_type, "HTTP")
+    describe_feature_type_url = SubElement(http_elem, "Get")
     describe_feature_type_url.set("xlink:href", base_url)
 
     # GetFeature operation
     get_feature = SubElement(request_elem, "GetFeature")
-    SubElement(get_feature, "DCPType").text = "HTTP"
-    get_feature_url = SubElement(get_feature, "Get")
+    dcp_type = SubElement(get_feature, "DCPType")
+    http_elem = SubElement(dcp_type, "HTTP")
+    get_feature_url = SubElement(http_elem, "Get")
     get_feature_url.set("xlink:href", base_url)
 
     # FeatureTypeList
