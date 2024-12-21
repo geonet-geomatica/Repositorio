@@ -1,27 +1,30 @@
-from flask import Flask, request, Response
+from flask import Flask, Response
 import logging
-from xml.sax.saxutils import escape
+from xml.etree.ElementTree import Element, SubElement, tostring
+import xml.sax.saxutils as saxutils
 
 app = Flask(__name__)
 
-logging.basicConfig(level=logging.DEBUG, format="%(asctime)s - %(levelname)s - %(message)s")
+# Configurar logs para depuración
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
-BASE_URL = "http://meteorologia.onrender.com/wfs"
+# Configuración básica
+BASE_URL = "https://meteorologia.onrender.com/wfs"
+SRS_NAME = "EPSG:4326"
+TYPENAME = "Estaciones"
 
-# Función para escapar caracteres XML
+# Utilidad para escapar caracteres especiales
+
 def escape_xml(value):
-    return escape(str(value)) if value is not None else ""
+    """Escapa caracteres especiales para XML."""
+    if value is None:
+        return ""
+    return saxutils.escape(str(value))
 
 @app.route('/wfs', methods=['GET'])
-def wfs_service():
-    service = request.args.get("SERVICE")
-    request_type = request.args.get("REQUEST")
-    typename = request.args.get("TYPENAME", "Estaciones")
-    srsname = request.args.get("SRSNAME", "EPSG:4326")
-
-    if service and service.upper() == "WFS":
-        if request_type and request_type.upper() == "GETCAPABILITIES":
-            capabilities_xml = f"""<?xml version="1.0" encoding="UTF-8"?>
+def wfs_capabilities():
+    """Genera el documento GetCapabilities para el servicio WFS."""
+    capabilities_xml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <wfs:WFS_Capabilities xmlns:wfs="http://www.opengis.net/wfs"
                       xmlns:ogc="http://www.opengis.net/ogc"
                       xmlns:gml="http://www.opengis.net/gml"
@@ -56,4 +59,24 @@ def wfs_service():
             <GetFeature>
                 <DCPType>
                     <HTTP>
-                        <Get xlink:href="{BASE_URL}?SERVICE=WFS&amp;REQUEST=GetFeature"/
+                        <Get xlink:href="{BASE_URL}?SERVICE=WFS&amp;REQUEST=GetFeature"/>
+                    </HTTP>
+                </DCPType>
+            </GetFeature>
+        </Request>
+    </Capability>
+    <FeatureTypeList>
+        <FeatureType>
+            <Name>{escape_xml(TYPENAME)}</Name>
+            <Title>Estaciones Agroclimáticas</Title>
+            <Abstract>Estaciones meteorológicas de Mendoza</Abstract>
+            <DefaultSRS>{escape_xml(SRS_NAME)}</DefaultSRS>
+            <LatLongBoundingBox minx="-70.0" miny="-35.0" maxx="-68.0" maxy="-32.0"/>
+        </FeatureType>
+    </FeatureTypeList>
+</wfs:WFS_Capabilities>"""
+
+    return Response(capabilities_xml, content_type='application/xml')
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)
