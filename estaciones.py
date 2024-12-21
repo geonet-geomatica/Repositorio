@@ -1,6 +1,6 @@
 from flask import Flask, request, Response
 import logging
-from xml.etree.ElementTree import Element, SubElement, tostring
+from xml.sax.saxutils import escape
 
 app = Flask(__name__)
 
@@ -8,67 +8,11 @@ logging.basicConfig(level=logging.DEBUG, format="%(asctime)s - %(levelname)s - %
 
 BASE_URL = "http://meteorologia.onrender.com/wfs"
 
-
-def create_capabilities(base_url):
-    capabilities = Element("wfs:WFS_Capabilities", {
-        "version": "1.1.0",
-        "xmlns:wfs": "http://www.opengis.net/wfs",
-        "xmlns:ogc": "http://www.opengis.net/ogc",
-        "xmlns:gml": "http://www.opengis.net/gml",
-        "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance",
-        "xmlns:xlink": "http://www.w3.org/1999/xlink",
-        "xsi:schemaLocation": "http://www.opengis.net/wfs http://schemas.opengis.net/wfs/1.1.0/wfs.xsd"
-    })
-
-    # Service section
-    service = SubElement(capabilities, "Service")
-    SubElement(service, "Name").text = "WFS"
-    SubElement(service, "Title").text = "WFS de Estaciones Agroclimáticas"
-    SubElement(service, "Abstract").text = "Servicio WFS que proporciona datos climáticos en formato estándar."
-    SubElement(service, "Keywords").text = "Clima, Estaciones, WFS, Agroclimática"
-    SubElement(service, "Fees").text = "NONE"
-    SubElement(service, "AccessConstraints").text = "NONE"
-
-    # Capability section
-    capability = SubElement(capabilities, "Capability")
-    request_elem = SubElement(capability, "Request")
-
-    # GetCapabilities operation
-    get_capabilities = SubElement(request_elem, "GetCapabilities")
-    dcp_type = SubElement(get_capabilities, "DCPType")
-    http_elem = SubElement(dcp_type, "HTTP")
-    get_capabilities_url = SubElement(http_elem, "Get")
-    get_capabilities_url.set("xlink:href", base_url)
-
-    # DescribeFeatureType operation
-    describe_feature_type = SubElement(request_elem, "DescribeFeatureType")
-    dcp_type = SubElement(describe_feature_type, "DCPType")
-    http_elem = SubElement(dcp_type, "HTTP")
-    describe_feature_type_url = SubElement(http_elem, "Get")
-    describe_feature_type_url.set("xlink:href", base_url + "?SERVICE=WFS&REQUEST=DescribeFeatureType")
-
-    # GetFeature operation
-    get_feature = SubElement(request_elem, "GetFeature")
-    dcp_type = SubElement(get_feature, "DCPType")
-    http_elem = SubElement(dcp_type, "HTTP")
-    get_feature_url = SubElement(http_elem, "Get")
-    get_feature_url.set("xlink:href", base_url + "?SERVICE=WFS&REQUEST=GetFeature")
-
-    # FeatureTypeList
-    feature_type_list = SubElement(capabilities, "FeatureTypeList")
-    feature_type = SubElement(feature_type_list, "FeatureType")
-    SubElement(feature_type, "Name").text = "Estaciones"
-    SubElement(feature_type, "Title").text = "Estaciones Agroclimáticas"
-    SubElement(feature_type, "Abstract").text = "Estaciones meteorológicas de Mendoza"
-    SubElement(feature_type, "DefaultSRS").text = "EPSG:4326"
-    bbox = SubElement(feature_type, "LatLongBoundingBox", {
-        "minx": "-70.0",
-        "miny": "-35.0",
-        "maxx": "-68.0",
-        "maxy": "-32.0"
-    })
-
-    return tostring(capabilities, encoding="utf-8", method="xml")
+# Función para escapar caracteres especiales
+def escape_xml(value):
+    if value is None:
+        return ""
+    return escape(str(value))
 
 
 @app.route('/wfs', methods=['GET'])
@@ -80,35 +24,60 @@ def wfs_service():
 
     if service and service.upper() == "WFS":
         if request_type and request_type.upper() == "GETCAPABILITIES":
-            logging.info("Procesando solicitud GetCapabilities...")
-            capabilities_xml = create_capabilities(BASE_URL)
+            capabilities_xml = f"""<?xml version="1.0" encoding="UTF-8"?>
+            <wfs:WFS_Capabilities xmlns:wfs="http://www.opengis.net/wfs"
+                                  xmlns:ogc="http://www.opengis.net/ogc"
+                                  xmlns:gml="http://www.opengis.net/gml"
+                                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                                  xmlns:xlink="http://www.w3.org/1999/xlink"
+                                  version="1.1.0"
+                                  xsi:schemaLocation="http://www.opengis.net/wfs http://schemas.opengis.net/wfs/1.1.0/wfs.xsd">
+                <Service>
+                    <Name>WFS</Name>
+                    <Title>WFS de Estaciones Agroclimáticas</Title>
+                    <Abstract>Servicio WFS que proporciona datos climáticos en formato estándar.</Abstract>
+                    <Keywords>Clima, Estaciones, WFS, Agroclimática</Keywords>
+                    <Fees>NONE</Fees>
+                    <AccessConstraints>NONE</AccessConstraints>
+                </Service>
+                <Capability>
+                    <Request>
+                        <GetCapabilities>
+                            <DCPType>
+                                <HTTP>
+                                    <Get xlink:href="{BASE_URL}?SERVICE=WFS&REQUEST=GetCapabilities"/>
+                                </HTTP>
+                            </DCPType>
+                        </GetCapabilities>
+                        <DescribeFeatureType>
+                            <DCPType>
+                                <HTTP>
+                                    <Get xlink:href="{BASE_URL}?SERVICE=WFS&REQUEST=DescribeFeatureType"/>
+                                </HTTP>
+                            </DCPType>
+                        </DescribeFeatureType>
+                        <GetFeature>
+                            <DCPType>
+                                <HTTP>
+                                    <Get xlink:href="{BASE_URL}?SERVICE=WFS&REQUEST=GetFeature"/>
+                                </HTTP>
+                            </DCPType>
+                        </GetFeature>
+                    </Request>
+                </Capability>
+                <FeatureTypeList>
+                    <FeatureType>
+                        <Name>Estaciones</Name>
+                        <Title>Estaciones Agroclimáticas</Title>
+                        <Abstract>Estaciones meteorológicas de Mendoza</Abstract>
+                        <DefaultSRS>EPSG:4326</DefaultSRS>
+                        <LatLongBoundingBox minx="-70.0" miny="-35.0" maxx="-68.0" maxy="-32.0"/>
+                    </FeatureType>
+                </FeatureTypeList>
+            </wfs:WFS_Capabilities>"""
             return Response(capabilities_xml, content_type="text/xml")
 
-        elif request_type and request_type.upper() == "DESCRIBEFEATURETYPE":
-            logging.info("Procesando solicitud DescribeFeatureType...")
-            schema_xml = f"""<?xml version="1.0" encoding="UTF-8"?>
-            <xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema"
-                        xmlns:gml="http://www.opengis.net/gml"
-                        xmlns="{BASE_URL}"
-                        targetNamespace="{BASE_URL}"
-                        elementFormDefault="qualified">
-                <xsd:complexType name="EstacionesType">
-                    <xsd:sequence>
-                        <xsd:element name="Nombre" type="xsd:string"/>
-                        <xsd:element name="Fecha" type="xsd:string"/>
-                        <xsd:element name="Temperatura_Aire" type="xsd:string"/>
-                        <xsd:element name="Humedad" type="xsd:string"/>
-                        <xsd:element name="Punto_de_Rocío" type="xsd:string"/>
-                        <xsd:element name="Velocidad_Viento" type="xsd:string"/>
-                        <xsd:element name="Dirección_del_Viento" type="xsd:string"/>
-                    </xsd:sequence>
-                </xsd:complexType>
-            </xsd:schema>"""
-            return Response(schema_xml, content_type="text/xml")
-
         elif request_type and request_type.upper() == "GETFEATURE":
-            logging.info("Procesando solicitud GetFeature...")
-            # Ejemplo estático de una respuesta GML válida
             gml_response = f"""<?xml version="1.0" encoding="UTF-8"?>
             <wfs:FeatureCollection xmlns:wfs="http://www.opengis.net/wfs"
                                    xmlns:gml="http://www.opengis.net/gml"
@@ -116,13 +85,13 @@ def wfs_service():
                                    xsi:schemaLocation="{BASE_URL} {BASE_URL}?SERVICE=WFS&REQUEST=DescribeFeatureType">
                 <gml:featureMember>
                     <Estaciones>
-                        <Nombre>Estación 1</Nombre>
-                        <Fecha>2024-01-01</Fecha>
-                        <Temperatura_Aire>20°C</Temperatura_Aire>
-                        <Humedad>50%</Humedad>
-                        <Punto_de_Rocío>10°C</Punto_de_Rocío>
-                        <Velocidad_Viento>5 m/s</Velocidad_Viento>
-                        <Dirección_del_Viento>NE</Dirección_del_Viento>
+                        <Nombre>{escape_xml("Estación 1")}</Nombre>
+                        <Fecha>{escape_xml("2024-01-01")}</Fecha>
+                        <Temperatura_Aire>{escape_xml("20°C")}</Temperatura_Aire>
+                        <Humedad>{escape_xml("50%")}</Humedad>
+                        <Punto_de_Rocío>{escape_xml("10°C")}</Punto_de_Rocío>
+                        <Velocidad_Viento>{escape_xml("5 m/s")}</Velocidad_Viento>
+                        <Dirección_del_Viento>{escape_xml("NE")}</Dirección_del_Viento>
                     </Estaciones>
                 </gml:featureMember>
             </wfs:FeatureCollection>"""
