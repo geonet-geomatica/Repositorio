@@ -10,8 +10,8 @@ logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %
 # Endpoint base para obtener datos de las estaciones
 BASE_URL = "https://agrometeo.mendoza.gov.ar/api/getInstantaneas.php"
 
-# Lista de estaciones disponibles
-STATIONS = list(range(1, 44))  # Estaciones del 1 al 43
+# Lista de estaciones disponibles (1 al 43)
+STATIONS = list(range(1, 44))
 
 def fetch_station_data(station_id):
     """
@@ -19,6 +19,7 @@ def fetch_station_data(station_id):
     """
     try:
         logging.info(f"Obteniendo datos para la estación {station_id}...")
+        # Forzar actualización de los datos haciendo una solicitud HTTP
         response = requests.get(f"{BASE_URL}?estacion={station_id}")
         response.raise_for_status()  # Levanta excepciones para códigos HTTP no exitosos
         data = response.json()
@@ -29,15 +30,19 @@ def fetch_station_data(station_id):
         else:
             logging.warning(f"No se encontraron datos para la estación {station_id}.")
             return None
+    except requests.exceptions.HTTPError as http_err:
+        logging.error(f"HTTP error al obtener datos de la estación {station_id}: {http_err}")
     except Exception as e:
         logging.error(f"Error al obtener datos de la estación {station_id}: {e}")
-        return None
+    return None
 
 @app.route('/stations', methods=['GET'])
 def get_all_stations():
     """
     Endpoint para obtener datos de todas las estaciones en formato GeoJSON.
     """
+    logging.info("Iniciando la generación del GeoJSON...")
+    
     features = []
     for station_id in STATIONS:
         station_data = fetch_station_data(station_id)
@@ -71,4 +76,6 @@ def get_all_stations():
     return jsonify(geojson)
 
 if __name__ == '__main__':
+    # Usar un puerto accesible para Render
     app.run(host='0.0.0.0', port=5000)
+
