@@ -2,7 +2,6 @@ from flask import Flask, request, jsonify, Response
 import requests
 import logging
 from xml.etree.ElementTree import Element, SubElement, tostring
-import xml.sax.saxutils as saxutils
 
 app = Flask(__name__)
 
@@ -28,69 +27,62 @@ def fetch_station_data(station_id):
         return None
 
 
-def escape_xml(value):
-    return saxutils.escape(str(value)) if value else ""
-
-
-def create_capabilities():
-    capabilities = Element("WFS_Capabilities", {
+def create_capabilities(base_url):
+    capabilities = Element("wfs:WFS_Capabilities", {
         "version": "1.1.0",
-        "xmlns": "http://www.opengis.net/wfs",
+        "xmlns:wfs": "http://www.opengis.net/wfs",
+        "xmlns:ogc": "http://www.opengis.net/ogc",
+        "xmlns:gml": "http://www.opengis.net/gml",
         "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance",
         "xsi:schemaLocation": "http://www.opengis.net/wfs http://schemas.opengis.net/wfs/1.1.0/wfs.xsd"
     })
 
+    # Service section
     service = SubElement(capabilities, "Service")
+    SubElement(service, "Name").text = "WFS"
     SubElement(service, "Title").text = "WFS de Estaciones Agroclimáticas"
     SubElement(service, "Abstract").text = "Servicio WFS que proporciona datos climáticos en formato estándar."
+    SubElement(service, "Keywords").text = "Clima, Estaciones, WFS, Agroclimática"
     SubElement(service, "Fees").text = "NONE"
     SubElement(service, "AccessConstraints").text = "NONE"
 
-    operations = SubElement(capabilities, "OperationsMetadata")
-    operation = SubElement(operations, "Operation", {"name": "GetCapabilities"})
-    SubElement(operation, "DCP").text = "HTTP"
+    # Capability section
+    capability = SubElement(capabilities, "Capability")
+    request_elem = SubElement(capability, "Request")
 
+    # GetCapabilities operation
+    get_capabilities = SubElement(request_elem, "GetCapabilities")
+    SubElement(get_capabilities, "DCPType").text = "HTTP"
+    get_capabilities_url = SubElement(get_capabilities, "Get")
+    get_capabilities_url.set("xlink:href", base_url)
+
+    # DescribeFeatureType operation
+    describe_feature_type = SubElement(request_elem, "DescribeFeatureType")
+    SubElement(describe_feature_type, "DCPType").text = "HTTP"
+    describe_feature_type_url = SubElement(describe_feature_type, "Get")
+    describe_feature_type_url.set("xlink:href", base_url)
+
+    # GetFeature operation
+    get_feature = SubElement(request_elem, "GetFeature")
+    SubElement(get_feature, "DCPType").text = "HTTP"
+    get_feature_url = SubElement(get_feature, "Get")
+    get_feature_url.set("xlink:href", base_url)
+
+    # FeatureTypeList
     feature_type_list = SubElement(capabilities, "FeatureTypeList")
     feature_type = SubElement(feature_type_list, "FeatureType")
     SubElement(feature_type, "Name").text = "Estaciones"
     SubElement(feature_type, "Title").text = "Estaciones Agroclimáticas"
+    SubElement(feature_type, "Abstract").text = "Estaciones meteorológicas de Mendoza"
     SubElement(feature_type, "DefaultSRS").text = "EPSG:4326"
+    bbox = SubElement(feature_type, "LatLongBoundingBox", {
+        "minx": "-70.0",
+        "miny": "-35.0",
+        "maxx": "-68.0",
+        "maxy": "-32.0"
+    })
 
     return tostring(capabilities, encoding="utf-8", method="xml")
-
-
-def create_feature_collection():
-    features = []
-    for station_id in STATIONS:
-        station_data = fetch_station_data(station_id)
-        if station_data:
-            try:
-                feature = {
-                    "type": "Feature",
-                    "geometry": {
-                        "type": "Point",
-                        "coordinates": [float(station_data["lng"]), float(station_data["lat"])]
-                    },
-                    "properties": {
-                        "Nombre": station_data["Nombre"],
-                        "Fecha": station_data["fecha"],
-                        "Temperatura_Aire": f"{station_data['tempAire']} °C",
-                        "Humedad": f"{station_data['humedad']} %",
-                        "Punto_de_Rocío": f"{station_data['puntoRocio']} °C",
-                        "Velocidad_Viento": f"{station_data['velocidadViento']} m/s",
-                        "Dirección_del_Viento": station_data["direccionVientoTexto"]
-                    }
-                }
-                features.append(feature)
-            except KeyError as e:
-                logging.error(f"Error procesando datos de la estación {station_id}: {e}")
-
-    geojson = {
-        "type": "FeatureCollection",
-        "features": features
-    }
-
-    return geojson
 
 
 @app.route('/wfs', methods=['GET'])
@@ -101,13 +93,14 @@ def wfs_service():
     if service and service.upper() == "WFS":
         if request_type and request_type.upper() == "GETCAPABILITIES":
             logging.info("Procesando solicitud GetCapabilities...")
-            capabilities_xml = create_capabilities()
+            base_url = request.url_root + "wfs"
+            capabilities_xml = create_capabilities(base_url)
             return Response(capabilities_xml, content_type="text/xml")
 
         elif request_type and request_type.upper() == "GETFEATURE":
             logging.info("Procesando solicitud GetFeature...")
-            geojson = create_feature_collection()
-            return jsonify(geojson)
+            # Aquí puedes implementar la lógica para devolver los datos de las estaciones
+            return Response("GetFeature aún no implementado.", content_type="text/xml")
 
     return Response("Solicitud WFS no válida.", status=400)
 
