@@ -62,12 +62,19 @@ def create_capabilities(base_url):
     SubElement(feature_type, "Title").text = "Estaciones Agroclimáticas"
     SubElement(feature_type, "Abstract").text = "Estaciones meteorológicas de Mendoza"
     SubElement(feature_type, "DefaultSRS").text = "EPSG:4326"
+    SubElement(feature_type, "SRS").text = "EPSG:4326"
+    
+    # Definición de BBox (Bounding Box)
     bbox = SubElement(feature_type, "LatLongBoundingBox", {
         "minx": "-70.0",
         "miny": "-35.0",
         "maxx": "-68.0",
         "maxy": "-32.0"
     })
+
+    # Include typename and namespace definition
+    typename = SubElement(feature_type, "TypeName")
+    typename.text = "Estaciones"
 
     return tostring(capabilities, encoding="utf-8", method="xml")
 
