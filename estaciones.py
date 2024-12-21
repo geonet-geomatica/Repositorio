@@ -45,21 +45,21 @@ def wfs_capabilities():
             <GetCapabilities>
                 <DCPType>
                     <HTTP>
-                        <Get xlink:href="{BASE_URL}?SERVICE=WFS&amp;REQUEST=GetCapabilities"/>
+                        <Get xlink:href="{escape_xml(BASE_URL)}?SERVICE=WFS&amp;REQUEST=GetCapabilities"/>
                     </HTTP>
                 </DCPType>
             </GetCapabilities>
             <DescribeFeatureType>
                 <DCPType>
                     <HTTP>
-                        <Get xlink:href="{BASE_URL}?SERVICE=WFS&amp;REQUEST=DescribeFeatureType"/>
+                        <Get xlink:href="{escape_xml(BASE_URL)}?SERVICE=WFS&amp;REQUEST=DescribeFeatureType"/>
                     </HTTP>
                 </DCPType>
             </DescribeFeatureType>
             <GetFeature>
                 <DCPType>
                     <HTTP>
-                        <Get xlink:href="{BASE_URL}?SERVICE=WFS&amp;REQUEST=GetFeature"/>
+                        <Get xlink:href="{escape_xml(BASE_URL)}?SERVICE=WFS&amp;REQUEST=GetFeature"/>
                     </HTTP>
                 </DCPType>
             </GetFeature>
@@ -71,6 +71,7 @@ def wfs_capabilities():
             <Title>Estaciones Agroclimáticas</Title>
             <Abstract>Estaciones meteorológicas de Mendoza</Abstract>
             <DefaultSRS>{escape_xml(SRS_NAME)}</DefaultSRS>
+            <SRS>{escape_xml(SRS_NAME)}</SRS>
             <LatLongBoundingBox minx="-70.0" miny="-35.0" maxx="-68.0" maxy="-32.0"/>
         </FeatureType>
     </FeatureTypeList>
