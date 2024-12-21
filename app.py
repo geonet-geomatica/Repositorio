@@ -4,7 +4,7 @@ import requests
 app = Flask(__name__)
 
 # URL base de la API original
-BASE_API_URL = "https://<dominio>/api/getInstantaneas.php"
+BASE_API_URL = "https://agrometeo.mendoza.gov.ar/api/getInstantaneas.php"
 
 @app.route('/get_all_weather_geojson', methods=['GET'])
 def get_all_weather_geojson():
