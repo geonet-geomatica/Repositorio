@@ -6,8 +6,7 @@ app = Flask(__name__)
 
 logging.basicConfig(level=logging.DEBUG, format="%(asctime)s - %(levelname)s - %(message)s")
 
-BASE_URL = "https://agrometeo.mendoza.gov.ar/api/getInstantaneas.php"
-STATIONS = list(range(1, 44))
+BASE_URL = "http://meteorologia.onrender.com/wfs"
 
 
 def create_capabilities(base_url):
@@ -46,14 +45,14 @@ def create_capabilities(base_url):
     dcp_type = SubElement(describe_feature_type, "DCPType")
     http_elem = SubElement(dcp_type, "HTTP")
     describe_feature_type_url = SubElement(http_elem, "Get")
-    describe_feature_type_url.set("xlink:href", base_url)
+    describe_feature_type_url.set("xlink:href", base_url + "?SERVICE=WFS&REQUEST=DescribeFeatureType")
 
     # GetFeature operation
     get_feature = SubElement(request_elem, "GetFeature")
     dcp_type = SubElement(get_feature, "DCPType")
     http_elem = SubElement(dcp_type, "HTTP")
     get_feature_url = SubElement(http_elem, "Get")
-    get_feature_url.set("xlink:href", base_url)
+    get_feature_url.set("xlink:href", base_url + "?SERVICE=WFS&REQUEST=GetFeature")
 
     # FeatureTypeList
     feature_type_list = SubElement(capabilities, "FeatureTypeList")
@@ -62,19 +61,12 @@ def create_capabilities(base_url):
     SubElement(feature_type, "Title").text = "Estaciones Agroclimáticas"
     SubElement(feature_type, "Abstract").text = "Estaciones meteorológicas de Mendoza"
     SubElement(feature_type, "DefaultSRS").text = "EPSG:4326"
-    SubElement(feature_type, "SRS").text = "EPSG:4326"
-    
-    # Definición de BBox (Bounding Box)
     bbox = SubElement(feature_type, "LatLongBoundingBox", {
         "minx": "-70.0",
         "miny": "-35.0",
         "maxx": "-68.0",
         "maxy": "-32.0"
     })
-
-    # Include typename and namespace definition
-    typename = SubElement(feature_type, "TypeName")
-    typename.text = "Estaciones"
 
     return tostring(capabilities, encoding="utf-8", method="xml")
 
@@ -83,18 +75,58 @@ def create_capabilities(base_url):
 def wfs_service():
     service = request.args.get("SERVICE")
     request_type = request.args.get("REQUEST")
+    typename = request.args.get("TYPENAME", "Estaciones")
+    srsname = request.args.get("SRSNAME", "EPSG:4326")
 
     if service and service.upper() == "WFS":
         if request_type and request_type.upper() == "GETCAPABILITIES":
             logging.info("Procesando solicitud GetCapabilities...")
-            base_url = request.url_root + "wfs"
-            capabilities_xml = create_capabilities(base_url)
+            capabilities_xml = create_capabilities(BASE_URL)
             return Response(capabilities_xml, content_type="text/xml")
+
+        elif request_type and request_type.upper() == "DESCRIBEFEATURETYPE":
+            logging.info("Procesando solicitud DescribeFeatureType...")
+            schema_xml = f"""<?xml version="1.0" encoding="UTF-8"?>
+            <xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+                        xmlns:gml="http://www.opengis.net/gml"
+                        xmlns="{BASE_URL}"
+                        targetNamespace="{BASE_URL}"
+                        elementFormDefault="qualified">
+                <xsd:complexType name="EstacionesType">
+                    <xsd:sequence>
+                        <xsd:element name="Nombre" type="xsd:string"/>
+                        <xsd:element name="Fecha" type="xsd:string"/>
+                        <xsd:element name="Temperatura_Aire" type="xsd:string"/>
+                        <xsd:element name="Humedad" type="xsd:string"/>
+                        <xsd:element name="Punto_de_Rocío" type="xsd:string"/>
+                        <xsd:element name="Velocidad_Viento" type="xsd:string"/>
+                        <xsd:element name="Dirección_del_Viento" type="xsd:string"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:schema>"""
+            return Response(schema_xml, content_type="text/xml")
 
         elif request_type and request_type.upper() == "GETFEATURE":
             logging.info("Procesando solicitud GetFeature...")
-            # Aquí puedes implementar la lógica para devolver los datos de las estaciones
-            return Response("GetFeature aún no implementado.", content_type="text/xml")
+            # Ejemplo estático de una respuesta GML válida
+            gml_response = f"""<?xml version="1.0" encoding="UTF-8"?>
+            <wfs:FeatureCollection xmlns:wfs="http://www.opengis.net/wfs"
+                                   xmlns:gml="http://www.opengis.net/gml"
+                                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                                   xsi:schemaLocation="{BASE_URL} {BASE_URL}?SERVICE=WFS&REQUEST=DescribeFeatureType">
+                <gml:featureMember>
+                    <Estaciones>
+                        <Nombre>Estación 1</Nombre>
+                        <Fecha>2024-01-01</Fecha>
+                        <Temperatura_Aire>20°C</Temperatura_Aire>
+                        <Humedad>50%</Humedad>
+                        <Punto_de_Rocío>10°C</Punto_de_Rocío>
+                        <Velocidad_Viento>5 m/s</Velocidad_Viento>
+                        <Dirección_del_Viento>NE</Dirección_del_Viento>
+                    </Estaciones>
+                </gml:featureMember>
+            </wfs:FeatureCollection>"""
+            return Response(gml_response, content_type="text/xml")
 
     return Response("Solicitud WFS no válida.", status=400)
 
